@@ -1,0 +1,975 @@
+import Monster from "../components/monster.js";
+import Player from "../components/player.js"
+import Waterbomb from "../components/waterbomb.js";
+import OrizontalPlatform from "../components/orizontal_platform.js";
+import VerticalPlatform from "../components/vertical_platform.js";
+import OrizontalBarile from "../components/orizontal_barile.js";
+import RotatingPlatform from "../components/rotating_platform.js";
+import MovingTubi from "../components/moving_tubi.js";
+
+export default class SceneOne extends Phaser.Scene {
+
+    background;       // oggetto relativo all'elemento "sfondo"
+    player;           // oggetto relativo all'elemento "giocatore"
+    floorHeight;      // Altezza del terreno (asse y) rispetto al riquadro di gioco
+    collide_water;
+    collide_piante;
+    collide_foglie;
+    collide_mostro;
+    lastWaterbomb;
+    tubi_goingUp;
+
+    constructor() {
+        // Il costruttore della classe base Phaser.Scene prende come argomento il nome della scena
+        super("scene_one");
+    }
+
+    init() {
+        console.log("scene_one - Executing init()");
+        // Definiamo l'altezza del terreno pari all'altezza del riquadro
+        // di gioco, per posizionare il giocatore sul fondo della schermata.
+        this.floorHeight = this.game.config.height - 120;
+        this.worldWidth = 17300;
+        this.collide_water = false;
+        this.collide_piante = false;
+        this.collide_mostro = false;
+        this.lastWaterbomb = 0;
+        this.collide_foglie = false;
+        this.tubi_goingUp = true;
+        this.valvole_overlap = false;
+        this.game.gameState.score = 0;
+    }
+
+    preload() {
+        console.log("scene_one - Executing preload()");
+        // Carichiamo gli asset grafici
+        this.load.image("pause_button", "assets/UI/pausa.png");
+
+        this.load.image("acqua", "assets/images/environment_elements/acqua.png");
+        this.load.image("platform", "assets/images/environment_elements/platform.png");
+        this.load.image("barile", "assets/images/environment_elements/barile.png");
+        this.load.image("foglia", "assets/images/environment_elements/foglia.png");
+        this.load.image("pianta_tossica", "assets/images/environment_elements/pianta toxic.png");
+        this.load.image("fungone", "assets/images/environment_elements/fungone.png");
+        this.load.image("falling_platform", "assets/images/environment_elements/falling platform.png");
+        this.load.image("tubo1", "assets/images/environment_elements/tubi/tubo1.png");
+        this.load.image("tubo_curvo_sx", "assets/images/environment_elements/tubi/tubo_curvo_sx.png");
+        this.load.image("tubo_curvo_dx", "assets/images/environment_elements/tubi/tubo_curvo_dx.png");
+        this.load.image("tubo_platform", "assets/images/environment_elements/tubi/piattaforma.png");
+        this.load.image("tubo2_1", "assets/images/environment_elements/tubi/tubo2_1.png");
+        this.load.image("tubo2_2", "assets/images/environment_elements/tubi/tubo2_2.png");
+        this.load.image("tubo2_3", "assets/images/environment_elements/tubi/tubo2_3.png");
+        this.load.image("tubo3", "assets/images/environment_elements/tubi/tubo3.png");
+        this.load.image("tubo4", "assets/images/environment_elements/tubi/tubo4.png");
+        this.load.image("tubo5", "assets/images/environment_elements/tubi/tubo5.png");
+        this.load.image("tubo6", "assets/images/environment_elements/tubi/tubo6.png");
+        this.load.image("tubo_curvo_up_dx", "assets/images/environment_elements/tubi/tubo_curvo_up_dx.png");
+        this.load.image("tubo_curvo_up_sx", "assets/images/environment_elements/tubi/tubo_curvo_up_sx.png");
+        this.load.image("tubo3_p", "assets/images/environment_elements/tubi/tubo3_p.png");
+        this.load.image("tubo4_p", "assets/images/environment_elements/tubi/tubo4_p.png");
+        this.load.image("tubo5_p", "assets/images/environment_elements/tubi/tubo5_p.png");
+        this.load.image("tubo6_p", "assets/images/environment_elements/tubi/tubo6_p.png");
+        this.load.image("tubo6_1", "assets/images/environment_elements/tubi/tubo6_1.png");
+        this.load.image("tubo7_1", "assets/images/environment_elements/tubi/tubo7_1.png");
+        this.load.image("tubo7_2", "assets/images/environment_elements/tubi/tubo7_2.png");
+        this.load.image("tubo7_piece", "assets/images/environment_elements/tubi/tubo7_piece.png");
+        this.load.image("valvola", "assets/images/environment_elements/tubi/valvola.png");
+        this.load.image("stelo", "assets/images/environment_elements/stelo.png");
+
+        //background
+        this.load.image("background_0", "assets/images/background/background_0.png"); // carica l'immagine di sfondo estremo
+        this.load.image("background_alberi1", "assets/images/background/background_alberi1.png"); // carica l'immagine di sfondo estremo
+    }
+
+    create() {
+        // Qui le istruzioni su cosa creare e dove nel mondo di gioco
+        console.log("scene_one - Executing create()");
+
+
+        //Inserisco gli elementi:
+        //che devono stare dietro al giocatore:
+        //sfondo
+        this.createBackground();
+        //piantone
+        this.createPiantone();
+        //tubi che si muovono su e giù
+        this.createScalaTubi();
+        //pavimenti
+        this.createFloors();
+        //tubi
+        this.createTubi();
+
+
+        //Player
+        const thePlayer = new Player(this, 16000, this.floorHeight -900, this.worldWidth);
+
+        //Mostri 
+        const Monster1 = new Monster(this, 5060, this.floorHeight);
+        const Monster2 = new Monster(this, 10900 -600, this.floorHeight-300);
+        const Monster3 = new Monster(this, 17130, this.floorHeight);
+        
+
+        //Aggiungi gli elementi alla fisica
+        this.player = this.physics.add.existing(thePlayer);
+        this.monster1 = this.physics.add.existing(Monster1);
+        this.monster2 = this.physics.add.existing(Monster2);
+        this.monster3 = this.physics.add.existing(Monster3);
+
+
+        //piattaforme normali
+        this.createStaticPlatforms();
+        //sx-dx
+        this.createOrizontalPlatforms();
+        //up-dpwn
+        this.createVerticalPlatforms();
+        //piante tossiche
+        this.createPianteTossiche();
+        //fungoni rimbalzoni
+        this.createFungoni();
+
+
+        //barili
+        this.createStaticBarili();
+        //sx-dx barili
+        this.createOrizontalBarili();
+        //tubo che cade col peso
+        this.createFallingPlatform();
+        //one shot foglie
+        this.createFoglie();  
+        //2 piattaforme verticali + "stelo" mostro
+        this.createVerticaliStelo();      
+
+
+        //acque
+        this.createAcque();
+        
+
+        //piattaforme livello 3
+        this.createPiattaformeTubi();
+        //piattaforme rotanti
+        this.createRotatingPlatforms();
+        //ultimo tubo con valvola
+        this.createLastTubo();
+        
+        
+        //waterbomb da prendere
+        this.insertWaterbomb();
+        //valvole
+        this.insertValvola();
+
+
+        //collider
+        this.colliderFloors();
+        this.colliderPiantone();
+        this.colliderTubi();
+        this.colliderScalaTubi();
+        this.colliderMonsters();
+
+        //interfaccia
+        this.createUI();
+
+
+        //CAMERA
+        // Imposta la camera per seguire i movimenti del giocatore lungo l'asse x
+        this.cameras.main.startFollow(this.player);
+        this.cameras.main.setFollowOffset(0, 260); // Abbassiamo la telecamera this.game.config.height / 2
+
+        //tasti da tastiera
+        this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+        this.keyV = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
+    }
+
+    createBackground() {
+        this.background = this.add.tileSprite(0, this.game.config.height + 80, 1280, 1000, "background_0");
+        this.background.setScrollFactor(0,0);
+        this.background.setOrigin(0, 1);
+
+        // Posizioniamo gli elementi nella scena
+        this.background1 = this.add.tileSprite(0, this.game.config.height, 1280, 1100, "background_alberi1"); //creiamo il primo livello (quello più in sfondo) del nostro parallax scrolling
+        this.background1.setScrollFactor(0,0);
+        this.background1.setOrigin(0, 1);
+
+        /*this.background2 = this.add.tileSprite(-250, this.game.config.height +50, 1530, 1000, "background_alberi1");
+        this.background2.setScrollFactor(0,0);
+        this.background2.setOrigin(0, 1);*/
+
+        /*this.background3 = this.add.tileSprite(0, 0, 1280, 720, "background_3");
+        this.background3.setScrollFactor(0,0);
+        this.background3.setOrigin(0, 0);*/
+    }
+
+    createFloors() {
+        this.floor = this.add.rectangle(-640, this.game.config.height,
+            1337, this.game.config.height - this.floorHeight,
+            0x637F50, 1);
+        this.floor.setOrigin(0, 1);
+
+        this.floor0 = this.add.rectangle(697, this.game.config.height,
+            1120, this.game.config.height - this.floorHeight - 80,
+            0x637F50, 1);
+        this.floor0.setOrigin(0, 1);
+
+        this.floor1 = this.add.rectangle(1817, this.game.config.height,
+            1327, this.game.config.height - this.floorHeight,
+            0x637F50, 1);
+        this.floor1.setOrigin(0, 1);
+
+        this.floor2 = this.add.rectangle(4405, this.game.config.height,
+            1485 -100, this.game.config.height - this.floorHeight,
+            0x637F50, 1);
+        this.floor2.setOrigin(0, 1);
+
+        this.floor3 = this.add.rectangle(9980 - 90, this.game.config.height,
+            2760, this.game.config.height - this.floorHeight,
+            0x637F50, 1);
+        this.floor3.setOrigin(0, 1);
+
+        this.floor4 = this.add.rectangle(13637, this.game.config.height,
+            50000, this.game.config.height - this.floorHeight,
+            0x637F50, 1);
+        this.floor4.setOrigin(0, 1);
+
+        this.physics.add.existing(this.floor, true);
+        this.physics.add.existing(this.floor1, true);
+        this.physics.add.existing(this.floor2, true);
+        this.physics.add.existing(this.floor3, true);
+        this.physics.add.existing(this.floor4, true);
+    }
+
+    colliderFloors() {
+        this.physics.add.collider(this.player, this.floor);
+        this.physics.add.collider(this.player, this.floor1);
+        this.physics.add.collider(this.player, this.floor2);
+        this.physics.add.collider(this.player, this.floor3);
+        this.physics.add.collider(this.player, this.floor4);
+    }
+
+    createAcque() {
+        this.acqua = this.add.tileSprite(697, this.floorHeight +2, 1120, 80 , "acqua");
+        this.acqua.setOrigin(0, 0);
+        this.acqua1 = this.add.tileSprite(6390 -600, this.floorHeight +2, 4100, 195 , "acqua");
+        this.acqua1.setOrigin(0, 0);
+        this.acqua2 = this.add.tileSprite(12681, this.floorHeight +2, 956.6, 195 , "acqua");
+        this.acqua2.setOrigin(0, 0);
+
+        this.physics.add.existing(this.acqua, true);
+        this.physics.add.existing(this.acqua1, true);
+        this.physics.add.existing(this.acqua2, true);
+        
+        this.physics.add.collider(this.player, this.acqua, ()=> {
+               this.collide_water = true;
+            });
+        this.physics.add.collider(this.player, this.acqua1, ()=> {
+                this.collide_water = true;
+        });
+        this.physics.add.collider(this.player, this.acqua2, ()=> {
+            this.collide_water = true;
+        });
+    }
+
+    createStaticPlatforms() {
+        this.platforms = this.physics.add.staticGroup();
+    
+        this.platforms.create(1184, 274 +75, 'platform');
+        this.platforms.create(2497, -98 +75, 'platform');
+        this.platforms.create(3900, 450 +75, 'platform');
+
+        // ...sottrai le piattaforme all'effetto della gravità!
+        this.platforms.children.iterate( function (platform) {
+                platform.setImmovable(true);
+                platform.body.allowGravity = false;
+        });
+
+        // Rendi le piattaforme "solide". Se il giocatore è su una piattaforma
+        // allora il suo stato è "non sta saltando" (questo per riprodurre l'animazione
+        // del giocatore fermo).
+        this.physics.add.collider(this.platforms, this.player, ()=> {
+                this.player.isJumping = false;
+        });
+    }
+
+    createOrizontalPlatforms() {
+        this.orizontal_platform1 = new OrizontalPlatform(this, 4060, 60+75);
+
+        this.physics.add.collider(this.player, this.orizontal_platform1, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    createVerticalPlatforms() {
+        this.vertical_platform1 = new VerticalPlatform(this, 904, 354+75, 80, 80);
+        this.vertical_platform2 = new VerticalPlatform(this, 1462, 265+75, 250, 110);
+        this.vertical_platform3 = new VerticalPlatform(this, 2158, 27+75, 120, 95);
+
+        this.physics.add.collider(this.player, this.vertical_platform1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.vertical_platform2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.vertical_platform3, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+    
+    createPiantone() {
+        this.piantona1 = this.add.rectangle(1817, this.floorHeight,
+            104, 510,
+            0x637F50, 1);
+        this.piantona1.setOrigin(0, 1);
+        this.ramo1 = this.add.rectangle(1817, this.floorHeight - 510,
+            155, 35,
+            0x637F50, 1);
+        this.ramo1.setOrigin(1, 0);
+
+        this.piantona2 = this.add.rectangle(3040, this.floorHeight,
+            104, 280,
+            0x637F50, 1);
+        this.piantona2.setOrigin(0, 1);
+        this.ramo2 = this.add.rectangle(3040, this.floorHeight - 280,
+            130, 35,
+            0x637F50, 1);
+        this.ramo2.setOrigin(1, 0);
+        this.piantona2_0 = this.add.rectangle(3040, this.floorHeight - 280,
+            104, 150,
+            0x4F6040, 1);
+        this.piantona2_0.setOrigin(0, 1);
+        this.piantona2_1 = this.add.rectangle(3040, this.floorHeight - 430,
+            104, 270,
+            0x637F50, 1);
+        this.piantona2_1.setOrigin(0, 1);
+        this.ramo2_1 = this.add.rectangle(3040, this.floorHeight - 700,
+            288, 35,
+            0x637F50, 1);
+        this.ramo2_1.setOrigin(1, 0);
+        this.ramo2_2 = this.add.rectangle(3040, this.floorHeight - 620,
+            665, 35,
+            0x637F50, 1);
+        this.ramo2_2.setOrigin(0, 0);
+
+        this.physics.add.existing(this.piantona1, true);
+        this.physics.add.existing(this.ramo1, true);
+        this.physics.add.existing(this.piantona2, true);
+        this.physics.add.existing(this.ramo2, true);
+        this.physics.add.existing(this.piantona2_1, true);
+        this.physics.add.existing(this.ramo2_1, true);
+        this.physics.add.existing(this.ramo2_2, true);
+    }
+
+    colliderPiantone() {
+        this.physics.add.collider(this.player, this.piantona1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.ramo1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.piantona2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.ramo2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.piantona2_1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.ramo2_1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.ramo2_2, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    createFungoni() {
+        this.fungone = this.add.image(2390, this.floorHeight, "fungone");
+        this.fungone.setOrigin(0.5, 1);
+        this.fungone1 = this.add.image(3300, this.game.config.height, "fungone");
+        this.fungone1.setOrigin(0.5, 1);
+
+        this.physics.add.existing(this.fungone, true);
+        this.physics.add.existing(this.fungone1, true);
+
+        this.physics.add.collider(this.player, this.fungone, ()=> {
+            this.player.body.setVelocityY(- 500);
+        });
+        this.physics.add.collider(this.player, this.fungone1, ()=> {
+            this.player.body.setVelocityY(- 500);
+        });
+    }
+
+    createPianteTossiche() {
+        this.piante_tossiche = this.physics.add.staticGroup();
+        this.piante_tossiche.create(2030, this.floorHeight - 43, "pianta_tossica");
+        this.piante_tossiche.create(2150, this.floorHeight - 43, "pianta_tossica");
+        this.piante_tossiche.create(2270, this.floorHeight - 43, "pianta_tossica");
+        this.piante_tossiche.create(2510, this.floorHeight - 43, "pianta_tossica");
+        this.piante_tossiche.create(2630, this.floorHeight - 43, "pianta_tossica");
+        this.piante_tossiche.create(2750, this.floorHeight - 43, "pianta_tossica");
+        this.piante_tossiche.create(2870, this.floorHeight - 43, "pianta_tossica");
+
+        this.piante_tossiche.children.iterate( function (pianta_tossica) {
+            pianta_tossica.setImmovable(true);
+            pianta_tossica.body.allowGravity = false;
+        });
+
+        this.physics.add.collider(this.piante_tossiche, this.player, ()=> {
+            this.collide_piante = true;
+        });
+    }
+
+    createStaticBarili() {
+        this.barili = this.physics.add.staticGroup();
+
+        this.barili.create(7470 -600, this.floorHeight, 'barile');
+        this.barili.create(8430 -600, this.floorHeight, 'barile');
+        this.barili.create(9475 -600, this.floorHeight, 'barile');
+
+        //this.barili.create(6910, this.floorHeight, 'barile'); //dinamica sx-dx
+        //this.barili.create(9985, this.floorHeight, 'barile'); //dinamica sx-dx
+
+
+        // ...sottrai le piattaforme all'effetto della gravità!
+        this.barili.children.iterate( function (barile) {
+                barile.setImmovable(true);
+                barile.body.allowGravity = false;
+        });
+
+        // Rendi le piattaforme "solide". Se il giocatore è su una piattaforma
+        // allora il suo stato è "non sta saltando" (questo per riprodurre l'animazione
+        // del giocatore fermo).
+        this.physics.add.collider(this.barili, this.player, ()=> {
+                this.player.isJumping = false;
+        });
+    }
+
+    createOrizontalBarili() {
+        this.orizontal_barile1 = new OrizontalBarile(this, 6910 -600, this.floorHeight, 250, 120);
+        this.orizontal_barile2 = new OrizontalBarile(this, 9935 -600, this.floorHeight, 50, 80);
+
+        this.physics.add.collider(this.player, this.orizontal_barile1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.orizontal_barile2, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    cadutaFoglie(f) {
+        f.body.setVelocityY(300);
+    }
+
+    createFoglie() {
+        this.foglie = this.physics.add.group();
+
+        this.foglie.create(7790 -600, this.floorHeight, 'foglia');
+        this.foglie.create(8090 -600, this.floorHeight, 'foglia');
+        this.foglie.create(9435 -600, 325+75, 'foglia');
+        this.foglie.create(9720 -600, 215+75, 'foglia');
+        this.foglie.create(10000 -600, 130+75, 'foglia');
+
+
+        // ...sottrai le piattaforme all'effetto della gravità!
+        this.foglie.children.iterate( function (foglia) {
+                foglia.setImmovable(true);
+                foglia.body.allowGravity = false;
+        });
+
+        // Rendi le piattaforme "solide". Se il giocatore è su una piattaforma
+        // allora il suo stato è "non sta saltando" (questo per riprodurre l'animazione
+        // del giocatore fermo).
+        this.physics.add.collider(this.player, this.foglie, (p, f)=> {
+                this.player.isJumping = false;
+                if(this.player.body.touching.down) {
+                    this.timedEvent = this.time.addEvent({ delay: 500, callback: this.cadutaFoglie, args: [f], callbackScope: this, loop: false });
+                }
+        });
+    }
+
+    createFallingPlatform() {
+        this.falling_platform = this.physics.add.group();
+        this.falling_platform.create(8973 -600, this.floorHeight-30, 'falling_platform');
+
+        this.falling_platform.children.iterate( function (platform) {
+            platform.setImmovable(true);
+            platform.body.allowGravity = false;
+        });
+
+        this.collide_fallingPlatform = this.physics.add.collider(this.player, this.falling_platform, (p, f)=> {
+            this.player.isJumping = false;
+            if(this.player.body.touching.down && f.body.y < this.game.config.height-30){
+                f.body.setVelocityY(15);
+                console.log("animation down in esecuzione");
+            } if(this.player.isJumping && this.falling_platform.y > this.floorHeight - 30) {
+                this.falling_platform.body.setVelocityY(-20);
+            }
+        });
+    }
+
+    createVerticaliStelo() {
+        this.verticale1 = this.add.rectangle(10210 -600, this.game.config.height,
+            90, 278,
+            0x000000, 1);
+        this.verticale1.setOrigin(0, 1);
+        this.verticale2 = this.add.rectangle(10400 -600, this.game.config.height,
+            90, 400,
+            0x000000, 1);
+        this.verticale2.setOrigin(0, 1);
+        this.stelo = this.add.image(10880 -600, this.floorHeight, "stelo")
+        this.stelo.setOrigin(0, 1);
+
+        this.physics.add.existing(this.verticale1, true);
+        this.physics.add.existing(this.verticale2, true);
+        this.physics.add.existing(this.stelo, true);
+
+        this.physics.add.collider(this.player, this.verticale1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.verticale2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.stelo, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    createPiattaformeTubi() {
+        this.piattaforme_tubi = this.physics.add.staticGroup();
+        this.piattaforme_tubi.create(11583, this.floorHeight - 100, "tubo_platform");
+        this.piattaforme_tubi.create(11797, this.floorHeight - 200, "tubo_platform");
+
+        this.piattaforme_tubi.children.iterate( function (piattaforma) {
+            piattaforma.setImmovable(true);
+            piattaforma.body.allowGravity = false;
+        });
+
+        this.physics.add.collider(this.piattaforme_tubi, this.player, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    createRotatingPlatforms() {
+        this.rotatingPlatform1 = new RotatingPlatform(this, 12764, 179+75);
+        this.rotatingPlatform2 = new RotatingPlatform(this, 13003, 290+75);
+        this.rotatingPlatform3 = new RotatingPlatform(this, 13242, 179+75);
+        this.rotatingPlatform4 = new RotatingPlatform(this, 13484, 67+75);
+
+        this.physics.add.collider(this.player, this.rotatingPlatform1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.rotatingPlatform2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.rotatingPlatform3, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.rotatingPlatform4, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    createTubi() {
+        this.tubo1 = this.add.image(12016, this.game.config.height+75, "tubo1");
+        this.tubo1.setOrigin(0, 1);
+
+        this.tubo2_1 = this.add.image(13637.5, this.game.config.height+75, "tubo2_1");
+        this.tubo2_1.setOrigin(0, 1);
+        this.tubo2_curvo_sx = this.add.image(13637.5, 137.5+75, "tubo_curvo_sx");
+        this.tubo2_curvo_sx.setOrigin(0, 0);
+        this.tubo2_2 = this.add.image(13700, 137.5+75, "tubo2_2");
+        this.tubo2_2.setOrigin(0, 0);
+        this.tubo2_curvo_dx = this.add.image(14051, 175+75, "tubo_curvo_up_dx");
+        this.tubo2_curvo_dx.setOrigin(0, 1);
+        this.tubo2_3 = this.add.image(14113.5, 112.5+75, "tubo2_3");
+        this.tubo2_3.setOrigin(1, 1);
+        this.tubo2_curvo_sx1 = this.add.image(14076.5, 53+75, "tubo_curvo_sx");
+        this.tubo2_curvo_sx1.setOrigin(0, 1);
+
+        this.tubo3_0 = this.add.image(14415, -35+75, "tubo_curvo_up_dx");
+        this.tubo3_0.setOrigin(0, 0);
+        this.tubo3 = this.add.image(14440.5, -32+75, "tubo3");
+        this.tubo3.setOrigin(0, 1);
+
+        this.tubo4_0 = this.add.image(14867, -157+75, "tubo_curvo_up_dx");
+        this.tubo4_0.setOrigin(0, 0);
+        this.tubo4 = this.add.image(14892.5, -157+75, "tubo4");
+        this.tubo4.setOrigin(0, 1);
+
+        this.tubo5_0 = this.add.image(15282, -264.5+75, "tubo_curvo_up_dx");
+        this.tubo5_0.setOrigin(0, 0);
+        this.tubo5 = this.add.image(15307.5, -264.5+75, "tubo5");
+        this.tubo5.setOrigin(0, 1);
+
+        this.tubo6 = this.add.image(15632, -244.5+75, "tubo6");
+        this.tubo6.setOrigin(0, 1);
+        this.tubo6_0 = this.add.image(15657.5, -244.5+75, "tubo_curvo_up_sx");
+        this.tubo6_0.setOrigin(0, 0);
+        this.tubo6_1 = this.add.image(15720, -219+75, "tubo6_1");
+        this.tubo6_1.setOrigin(0, 0);
+
+        this.tubo7_1 = this.add.image(16170 - 110, -244+75, "tubo7_1");
+        this.tubo7_1.setOrigin(0, 0);
+        this.tubo7_2 = this.add.image(16232 - 110, -158.5+75, "tubo7_2");
+        this.tubo7_2.setOrigin(0, 0);
+        this.tubo7_3 = this.add.image(16479, -164+75, "tubo_curvo_dx");
+        this.tubo7_3.setOrigin(0, 0);
+        this.tubo7_4 = this.add.image(16323, 26+75, "tubo7_piece");
+        this.tubo7_4.setOrigin(0, 0);
+        this.tubo7_5 = this.add.image(16165, 218+75, "tubo7_piece");
+        this.tubo7_5.setOrigin(0, 0);
+        this.tubo7_6 = this.add.image(16450, 230+75, "tubo_curvo_dx");
+        this.tubo7_6.setOrigin(0, 0);
+        this.tubo7_7 = this.add.image(16286, 409+75, "tubo7_piece");
+        this.tubo7_7.setOrigin(0, 0);
+        this.tubo7_8 = this.add.image(16142, 424+75, "tubo_curvo_sx");
+        this.tubo7_8.setOrigin(0, 0);
+
+        this.physics.add.existing(this.tubo1, true);
+        this.physics.add.existing(this.tubo2_1, true);
+        this.physics.add.existing(this.tubo2_2, true);
+        this.physics.add.existing(this.tubo2_3, true);
+        this.physics.add.existing(this.tubo2_curvo_dx, true);
+        this.physics.add.existing(this.tubo2_curvo_sx, true);
+        this.physics.add.existing(this.tubo2_curvo_sx1, true);
+        this.physics.add.existing(this.tubo3, true);
+        this.physics.add.existing(this.tubo4, true);
+        this.physics.add.existing(this.tubo5, true);
+        this.physics.add.existing(this.tubo6, true);
+        this.physics.add.existing(this.tubo6_1, true);
+        this.physics.add.existing(this.tubo7_1, true);
+        this.physics.add.existing(this.tubo7_2, true);
+        this.physics.add.existing(this.tubo7_3, true);
+        this.physics.add.existing(this.tubo7_4, true);
+        this.physics.add.existing(this.tubo7_5, true);
+        this.physics.add.existing(this.tubo7_6, true);
+        this.physics.add.existing(this.tubo7_7, true);
+        this.physics.add.existing(this.tubo7_8, true);
+    }
+
+    colliderTubi() {
+        this.physics.add.collider(this.player, this.tubo1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo2_1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo2_2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo2_3, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo2_curvo_sx, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo2_curvo_sx1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo3, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo4, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo5, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo6, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo6_1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_1, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_2, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_3, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_4, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_5, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_6, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_7, ()=> {
+            this.player.isJumping = false;
+        });
+        this.physics.add.collider(this.player, this.tubo7_8, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    createScalaTubi() {
+        //aggiungo i tubi definiti nel file 'movig_tubi'
+        this.tubo3_orizz = new MovingTubi(this, 14277.4751, 9+75, "tubo3_p", true);
+        
+
+        this.tubo4_orizz = new MovingTubi(this, 14685, -113+75, "tubo4_p", false);
+        
+
+        this.tubo5_orizz = new MovingTubi(this, 15118.5, -221+75, "tubo5_p", true);
+        
+
+        this.tubo6_orizz = new MovingTubi(this, 15501, -345.5+75, "tubo6_p", true);
+    }
+
+    createLastTubo() {
+        this.last_tubo = this.add.image(16188, -262+75, "tubo6_p");
+        this.physics.add.existing(this.last_tubo, true);
+        this.last_tubo.body.allowGravity = false;
+
+        this.physics.add.collider(this.last_tubo, this.player, ()=> {
+            this.player.isJumping = false;
+        });
+    }
+
+    colliderScalaTubi(){
+        if(this.tubo3_orizz.press == true){  //solo se la velocità del tubo è 0 posso camminarci sopra -> se si stanno muovendo ci passo attraverso
+            this.physics.add.collider(this.tubo3_orizz, this.player, ()=> {
+                this.player.isJumping = false;
+            });
+        }
+
+        if(this.tubo4_orizz.press == true){
+            this.physics.add.collider(this.tubo4_orizz, this.player, ()=> {
+                this.player.isJumping = false;
+            });
+        }
+
+        if(this.tubo5_orizz.press == true){
+            this.physics.add.collider(this.tubo5_orizz, this.player, ()=> {
+                this.player.isJumping = false;
+            });
+        }
+
+        if(this.tubo6_orizz.press == true){
+            this.physics.add.collider(this.tubo6_orizz, this.player, ()=> {
+                this.player.isJumping = false;
+            });
+        }
+
+    }
+
+    addColliderTubi(p, t){
+        this.physics.add.collider(p, t, ()=> {
+            p.isJumping = false;
+        });
+    }
+
+    insertWaterbomb() {
+        this.waterbombs = this.physics.add.staticGroup();
+        this.waterbombs.create(2975, this.floorHeight - 335,  "waterbomb");
+        this.waterbombs.create(10000 -600, 70+75,  "waterbomb");
+        this.waterbombs.create(16270, -330+75,  "waterbomb");
+
+        // Le waterbombs devono fermarsi sul pavimento/fondo
+        this.physics.add.collider(this.waterbombs, this.platforms);
+        // Se il giocatore si sovrappone al funghetto... aggiorniamo il punteggio...
+        this.physics.add.overlap(this.player, this.waterbombs, this.updateScore, null, this);
+    }
+
+    lastTuboAnimation(t) {
+        var last_tubo = t;
+        last_tubo.body.setVelocityY(100);
+        last_tubo.refreshbody();
+    }
+
+    insertValvola() {
+        this.valvola1 = this.add.image(12490, 255+75, "valvola");
+        this.valvola2 = this.add.image(13955, 130+75, "valvola");
+        this.valvola3 = this.add.image(16188, -280+75, "valvola");
+
+        this.physics.add.existing(this.valvola1, true);
+        this.physics.add.existing(this.valvola2, true);
+        this.physics.add.existing(this.valvola3, true);
+
+        // Se il giocatore si sovrappone alla valvola
+        this.physics.add.overlap(this.player, this.valvola1, ()=> {
+            if (this.keyV.isDown) {   //e se preme 'V'
+                this.rotatingPlatform1.press = true;
+                this.rotatingPlatform2.press = true;
+                this.rotatingPlatform3.press = true;
+                this.rotatingPlatform4.press = true;
+            }
+        });
+
+        // Se il giocatore si sovrappone alla valvola
+        this.physics.add.overlap(this.player, this.valvola2, ()=> {
+            if (this.keyV.isDown) {   //e se preme 'V'
+                this.tubo3_orizz.press = true;  //aggiorniamo il parametro 'press' nel file moving_tubi.js -> attiva l'if che azzera la velocità del tubo e lo ferma a mezz'aria
+                this.addColliderTubi(this.player, this.tubo3_orizz);
+                this.tubo4_orizz.press = true;
+                this.addColliderTubi(this.player, this.tubo4_orizz);
+                this.tubo5_orizz.press = true;
+                this.addColliderTubi(this.player, this.tubo5_orizz);
+                this.tubo6_orizz.press = true;
+                this.addColliderTubi(this.player, this.tubo6_orizz);
+            }
+        });
+
+        this.physics.add.overlap(this.player, this.valvola3, ()=> {
+            if (this.keyV.isDown) {   //e se preme 'V'
+                if(this.last_tubo.body.y <= -158.5){
+                    this.lastTuboAnimation(this.last_tubo);
+                    console.log('animation down '+ this.last_tubo.body.velocity.y);
+                } else if(this.last_tubo.body.y > -158.5){
+                    this.lastTuboAnimation(this.last_tubo);
+                    this.last_tubo.body.setVelocityY(0);
+                }
+            }
+        });
+    }
+
+    colliderMonsters() {
+        this.physics.add.collider(this.monster1, this.floor2);
+        this.physics.add.collider(this.player, this.monster1, ()=> {
+            this.collide_mostro = true;
+        });
+
+        this.physics.add.collider(this.monster2, this.stelo);
+        this.physics.add.collider(this.player, this.monster2, ()=> {
+            this.collide_mostro = true;
+        });
+
+        this.physics.add.collider(this.monster3, this.floor3);
+        this.physics.add.collider(this.player, this.monster3, ()=> {
+             this.collide_mostro = true;
+        });
+    }
+
+    createUI() {
+        this.scoreBox = this.add.image(30, 20, "waterbomb");
+        this.scoreBox.setScale(0.7);
+        this.scoreBox.setOrigin(0, 0);
+        this.scoreBox.setScrollFactor(0, 0);
+        this.scoreBox.alpha = 0.3;
+
+        this.pause_button = this.add.tileSprite(this.game.config.width -80, 30, 50, 50 , "pause_button");
+        this.pause_button.setOrigin(0, 0);
+        this.pause_button.setScrollFactor(0, 0);
+        this.pause_button.setInteractive(); //imposta l'immagine in modo che possa essere cliccata
+
+        this.pause_button.on("pointerdown", ()=>{ //quando viene clickato il bottone succedono cose
+            this.scene.pause();
+            this.scene.launch("scene_pause", {sceneName: "scene_one"});
+        });
+    }
+
+    update() {
+        // Azioni che vengono eseguite a ogni frame del gioco
+        this.player.manageMovements();
+        this.animateBackground();
+        this.manageWaterbombLaunch();
+        this.orizontal_platform1.initAnimations();
+        this.vertical_platform1.initAnimations();
+        this.vertical_platform2.initAnimations();
+        this.vertical_platform3.initAnimations();
+
+        this.orizontal_barile1.initAnimations();
+        this.orizontal_barile2.initAnimations();
+
+        this.rotatingPlatform1.rotatingAnimation();
+        this.rotatingPlatform2.rotatingAnimation();
+        this.rotatingPlatform3.rotatingAnimation();
+        this.rotatingPlatform4.rotatingAnimation();
+        
+        this.tubo3_orizz.movingAnimation();
+        this.tubo4_orizz.movingAnimation();
+        this.tubo5_orizz.movingAnimation();
+        this.tubo6_orizz.movingAnimation();
+
+        if(this.player.isJumping && this.falling_platform.y > this.floorHeight - 50){
+            this.falling_platform.body.setVelocityY(-20);
+            console.log("animation up " + this.falling_platform.body.velocity.y);
+        }
+
+        //quando muore il personaggio?
+        if (this.collide_water || this.collide_piante || this.player.y > this.game.config.height || this.collide_mostro){
+            this.playerDie();
+        }
+    }
+
+    manageWaterbombLaunch() {
+        const minTimeBetweenWaterbombs = 500;    // Tempo minimo (in ms) tra uno shuriken e l'altro
+
+        const timeFromPreviousWaterbomb = this.time.now-this.lastWaterbomb;
+
+        // Se A e' premuto ed e' passato abbastanza tempo tra la waterbomb precedente
+        // e adesso...
+        if(this.keyA.isDown && timeFromPreviousWaterbomb > minTimeBetweenWaterbombs) {
+            // Se sono qui devo creare e lanciare uno shuriken
+            this.lastWaterbomb = this.time.now;      // Setto il tempo per il prossimo giro
+            const player_dir = this.player.flipX;   // Prendo la direzione del player (che sara' la direzione della waterbomb)
+
+            if (this.game.gameState.score > 0) {
+                // Creo una waterbomb
+                const waterbomb = new Waterbomb(this, this.player.x+20, this.player.y-60, 10, player_dir);
+                // Aggiungo la collisione
+                this.physics.add.collider(this.monster1, waterbomb, this.destroyMonster, null, this);
+                this.physics.add.collider(this.monster2, waterbomb, this.destroyMonster, null, this);
+                this.physics.add.collider(this.monster3, waterbomb, this.destroyMonster, null, this);
+                // Lo lancio
+            
+                waterbomb.fire();
+                this.game.gameState.score -= 1;
+                this.scoreBox.alpha = 0.2;
+            }
+        } 
+    }
+
+    updateScore(player, waterbomb) {
+        this.game.gameState.score += 1;
+        this.scoreBox.alpha = 1;
+        waterbomb.destroy();
+    }
+
+    animateBackground() {
+
+        // Aggiorno la posizione del background in base alla posizione della camera
+        // con velocità diverse per ogni background
+        
+        this.background1.tilePositionX = this.cameras.main.scrollX * 0.1;
+        //this.background2.tilePositionX = this.cameras.main.scrollX * 0.3; 
+        //this.background3.tilePositionX = this.cameras.main.scrollX * 0.25;
+        
+        this.background.tilePositionY = this.cameras.main.scrollY * 0.1;
+        this.background1.tilePositionY = this.cameras.main.scrollY * 0.17;
+        //this.background2.tilePositionY = this.cameras.main.scrollY * 0.8;
+
+        const startLineCamera = 600;
+        const shiftCameraMax = 250;
+
+        //this.cameras.main.followOffset.y = this.player.body.y-this.game.config.height/2 + this.player.body.height;
+
+        if(this.player.y > this.floorHeight){
+            this.cameras.main.followOffset.y = this.player.body.y-this.game.config.height/2 + this.player.body.height;
+        } if(this.player.body.y + this.player.height / 2 < startLineCamera) {
+            this.cameras.main.followOffset.y = Math.max(260 - shiftCameraMax, 260 - (startLineCamera- (this.player.body.y + this.player.height / 2)));
+        }/*else{
+            this.cameras.main.followOffset.y = this.floorHeight - this.game.config.height/2;
+        }*/
+    }
+
+    destroyMonster(monster, waterbomb) {
+        monster.destroy();
+        waterbomb.destroy();
+        if(monster == this.monster3) {
+            this.timedEvent = this.time.addEvent({ delay: 400, callback: this.chiamaHaiVinto, callbackScope: this, loop: false });
+        }
+    }
+
+    chiamaHaiVinto(){
+        this.scene.start("scene_youwin");
+    }
+
+    playerDie() {
+        this.scene.start("scene_gameover");
+    }
+
+}
